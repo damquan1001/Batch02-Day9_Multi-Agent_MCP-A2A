@@ -49,9 +49,9 @@ def _bool_env(name: str, default: bool) -> bool:
 def _configure_engine() -> None:
     """Configure the real RAG engine when keys/services are available.
 
-    If live configuration fails, RAGCoreEngine still has deterministic offline
-    fallbacks. The response trace will make that visible instead of claiming a
-    successful Weaviate lookup.
+    If live configuration fails, RAGCoreEngine still has deterministic local
+    source documents. The response trace will make that visible instead of
+    claiming a successful Weaviate lookup.
     """
     global ENGINE_STATUS
     config = RAGConfig(
@@ -65,15 +65,15 @@ def _configure_engine() -> None:
         engine.configure(config)
         ENGINE_STATUS = "configured"
     except Exception as exc:
-        ENGINE_STATUS = f"offline fallback: {exc}"
+        ENGINE_STATUS = f"local fallback: {exc}"
 
 
 def _trace_for_sources(sources: list) -> str:
-    using_offline = any(str(getattr(source, "id", "")).startswith("offline_") for source in sources)
-    if using_offline:
-        if ENGINE_STATUS.startswith("offline fallback"):
-            return f"LegalRAG ➡️ Dùng corpus offline/fallback ({ENGINE_STATUS})"
-        return "LegalRAG ➡️ Dùng corpus offline/fallback (live retrieval không có kết quả phù hợp)"
+    using_local_docs = any(str(getattr(source, "id", "")).startswith("local_") for source in sources)
+    if using_local_docs:
+        if ENGINE_STATUS.startswith("local fallback"):
+            return f"LegalRAG ➡️ Dùng bộ tài liệu cục bộ ({ENGINE_STATUS})"
+        return "LegalRAG ➡️ Dùng bộ tài liệu cục bộ vì vector store chưa khả dụng"
     return "LegalRAG ➡️ Truy vấn Weaviate DB thành công"
 
 

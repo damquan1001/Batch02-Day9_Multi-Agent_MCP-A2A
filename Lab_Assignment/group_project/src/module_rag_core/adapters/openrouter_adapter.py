@@ -25,13 +25,13 @@ class OpenRouterAdapter(LLMServicePort):
         self.temperature = temperature
         if os.getenv("RAG_FORCE_OFFLINE", "").strip() in {"1", "true", "yes", "on"}:
             self.llm = None
-            print("RAG_FORCE_OFFLINE is enabled. Using offline answer composer.")
+            print("RAG_FORCE_OFFLINE is enabled. Using extractive answer composer.")
             return
 
         openrouter_key = os.getenv("OPENROUTER_API_KEY")
         if not openrouter_key:
             self.llm = None
-            print("OPENROUTER_API_KEY not found. Using offline answer composer.")
+            print("OPENROUTER_API_KEY not found. Using extractive answer composer.")
             return
             
         self.llm = ChatOpenAI(
@@ -77,7 +77,7 @@ class OpenRouterAdapter(LLMServicePort):
     def generate_answer(self, system_prompt: str, context: str, query: str) -> str:
         """Synthesize a response with inline citations based on the provided context."""
         if not self.llm:
-            return self._offline_answer(context=context, query=query)
+            return self._extractive_answer(context=context, query=query)
             
         prompt = (
             f"System: {system_prompt}\n\n"
@@ -90,12 +90,12 @@ class OpenRouterAdapter(LLMServicePort):
             return response.content.strip()
         except Exception as e:
             print(f"OpenRouter generate_answer error: {e}")
-            return self._offline_answer(context=context, query=query)
+            return self._extractive_answer(context=context, query=query)
 
-    def _offline_answer(self, context: str, query: str) -> str:
+    def _extractive_answer(self, context: str, query: str) -> str:
         blocks = self._parse_context_blocks(context)
         if not blocks:
-            return "Toi khong the xac minh thong tin nay tu cac tai lieu hien co."
+            return "Tôi không thể xác minh thông tin này từ các tài liệu hiện có."
 
         bullets = []
         for source, content in blocks[:2]:
@@ -103,8 +103,8 @@ class OpenRouterAdapter(LLMServicePort):
             bullets.append(f"- {snippet} [{source}]")
 
         return (
-            "Tra loi du thao offline cho cau hoi: "
-            f"{query}\n\n"
+            "Không gọi được LLM trong môi trường hiện tại. Dưới đây là phần "
+            f"trích xuất trực tiếp từ tài liệu cho câu hỏi: {query}\n\n"
             + "\n".join(bullets)
         )
 

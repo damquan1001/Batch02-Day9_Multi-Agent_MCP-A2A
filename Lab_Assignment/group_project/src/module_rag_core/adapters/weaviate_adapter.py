@@ -20,7 +20,7 @@ from src.module_rag_core.ports.outbound import VectorStorePort
 
 
 class WeaviateDockerAdapter(VectorStorePort):
-    """Weaviate adapter with deterministic fallback documents for demos/tests."""
+    """Weaviate adapter with local source documents when the vector store is unavailable."""
 
     def __init__(self) -> None:
         self.client = None
@@ -116,8 +116,6 @@ class WeaviateDockerAdapter(VectorStorePort):
                         score=obj.metadata.score if obj.metadata else None,
                     )
                 )
-            if self._needs_criminal_penalty_fallback(query, docs):
-                return self._fallback_docs(query=query, top_k=top_k)
             return docs
         except Exception as exc:
             print(f"Weaviate query error: {exc}. Using fallback documents.")
@@ -126,7 +124,7 @@ class WeaviateDockerAdapter(VectorStorePort):
     def _fallback_docs(self, query: str, top_k: int) -> List[Document]:
         scored_docs = []
         query_tokens = self._tokens(query)
-        for doc in self._offline_corpus():
+        for doc in self._local_corpus():
             doc_tokens = self._tokens(doc.content + " " + str(doc.metadata))
             overlap = len(query_tokens & doc_tokens)
             score = overlap / max(len(query_tokens), 1)
@@ -139,10 +137,10 @@ class WeaviateDockerAdapter(VectorStorePort):
         return scored_docs[:top_k]
 
     @staticmethod
-    def _offline_corpus() -> List[Document]:
+    def _local_corpus() -> List[Document]:
         return [
             Document(
-                id="offline_blhs_249",
+                id="local_blhs_249",
                 content=(
                     "Dieu 249 Bo luat Hinh su: nguoi nao tang tru trai phep "
                     "chat ma tuy ma khong nham muc dich mua ban, van chuyen, "
@@ -158,7 +156,7 @@ class WeaviateDockerAdapter(VectorStorePort):
                 score=0.9,
             ),
             Document(
-                id="offline_luat_28_29",
+                id="local_luat_28_29",
                 content=(
                     "Luat Phong, chong ma tuy 2021 quy dinh bien phap cai "
                     "nghien gom cai nghien tu nguyen va cai nghien bat buoc. "
@@ -174,7 +172,7 @@ class WeaviateDockerAdapter(VectorStorePort):
                 score=0.85,
             ),
             Document(
-                id="offline_luat_5",
+                id="local_luat_5",
                 content=(
                     "Dieu 5 Luat Phong, chong ma tuy 2021 nghiem cam trong "
                     "cay co chua chat ma tuy; san xuat, tang tru, van chuyen, "
@@ -190,7 +188,7 @@ class WeaviateDockerAdapter(VectorStorePort):
                 score=0.82,
             ),
             Document(
-                id="offline_definition",
+                id="local_definition",
                 content=(
                     "Chat ma tuy la chat gay nghien, chat huong than duoc quy "
                     "dinh trong danh muc chat ma tuy do Chinh phu ban hanh."
@@ -203,7 +201,7 @@ class WeaviateDockerAdapter(VectorStorePort):
                 score=0.78,
             ),
             Document(
-                id="offline_news",
+                id="local_news",
                 content=(
                     "Nhom tin tuc trong corpus dung de doi chieu cac vu viec "
                     "lien quan den ma tuy, bat giu, van chuyen va xu ly theo "
@@ -233,21 +231,3 @@ class WeaviateDockerAdapter(VectorStorePort):
                 return True
         except OSError:
             return False
-
-    @staticmethod
-    def _needs_criminal_penalty_fallback(query: str, docs: List[Document]) -> bool:
-        query_text = query.lower()
-        asks_penalty = any(
-            keyword in query_text
-            for keyword in ["hinh phat", "hình phạt", "phat tu", "phạt tù", "toi", "tội", "tang tru", "tàng trữ"]
-        )
-        if not asks_penalty:
-            return False
-
-        retrieved_text = " ".join(
-            [doc.content for doc in docs]
-            + [str(doc.metadata.get("source", "")) for doc in docs]
-            + [str(doc.metadata.get("title", "")) for doc in docs]
-        ).lower()
-        criminal_markers = ["điều 249", "dieu 249", "bộ luật hình sự", "bo luat hinh su", "phạt tù", "phat tu"]
-        return not any(marker in retrieved_text for marker in criminal_markers)

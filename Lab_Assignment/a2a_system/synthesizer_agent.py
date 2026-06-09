@@ -29,7 +29,7 @@ def generate(request: ChatRequest):
         return {
             "answer": context or "Xin chào, bạn có thể hỏi mình về pháp luật phòng chống ma túy.",
             "sources": [],
-            "trace": ["Synthesizer ➡️ Trả lời fallback vì chưa cấu hình LLM hoặc đang chạy offline"]
+            "trace": ["Synthesizer ➡️ Trả lời bằng context sẵn có vì LLM tổng hợp chưa khả dụng"]
         }
 
     try:
@@ -40,7 +40,7 @@ def generate(request: ChatRequest):
                 "thập bên dưới để viết câu trả lời cuối cùng. Không tự thêm "
                 "căn cứ pháp lý, số liệu, hoặc nguồn mới. Giữ lại citation "
                 "trong ngoặc vuông nếu có. Nếu dữ liệu cho biết đang dùng "
-                "fallback/offline demo, diễn đạt trung thực và ngắn gọn.\n\n"
+                "nguồn dữ liệu cục bộ hoặc dịch vụ ngoài chưa khả dụng, diễn đạt trung thực và ngắn gọn.\n\n"
                 f"[Dữ liệu thu thập]:\n{context}"
             )
         else:
