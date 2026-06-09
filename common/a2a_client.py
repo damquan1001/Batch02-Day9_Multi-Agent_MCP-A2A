@@ -7,6 +7,8 @@ sends a message to another A2A agent and returns the text response.
 from __future__ import annotations
 
 import logging
+import asyncio
+import os
 from uuid import uuid4
 
 import httpx
@@ -21,8 +23,12 @@ from a2a.types import (
     SendMessageRequest,
     TextPart,
 )
+from common.security import auth_headers
 
 logger = logging.getLogger(__name__)
+
+A2A_RETRY_ATTEMPTS = int(os.getenv("A2A_RETRY_ATTEMPTS", "3"))
+A2A_RETRY_BASE_DELAY = float(os.getenv("A2A_RETRY_BASE_DELAY", "0.75"))
 
 
 async def delegate(
@@ -44,17 +50,46 @@ async def delegate(
     Returns:
         The agent's text response, or an empty string if none could be extracted.
     """
-    async with httpx.AsyncClient(timeout=300.0) as http_client:
-        # Fetch agent card
+    last_exc: Exception | None = None
+    for attempt in range(1, A2A_RETRY_ATTEMPTS + 1):
+        try:
+            return await _delegate_once(endpoint, question, context_id, trace_id, depth)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code < 500:
+                raise
+            last_exc = exc
+        except (httpx.ConnectError, httpx.ReadTimeout, httpx.ConnectTimeout) as exc:
+            last_exc = exc
+
+        if attempt < A2A_RETRY_ATTEMPTS:
+            delay = A2A_RETRY_BASE_DELAY * (2 ** (attempt - 1))
+            logger.warning(
+                "Delegation to %s failed on attempt %d/%d: %s",
+                endpoint,
+                attempt,
+                A2A_RETRY_ATTEMPTS,
+                last_exc,
+            )
+            await asyncio.sleep(delay)
+
+    assert last_exc is not None
+    raise last_exc
+
+
+async def _delegate_once(
+    endpoint: str,
+    question: str,
+    context_id: str,
+    trace_id: str,
+    depth: int,
+) -> str:
+    async with httpx.AsyncClient(timeout=300.0, headers=auth_headers()) as http_client:
         card_url = f"{endpoint}/.well-known/agent.json"
         card_resp = await http_client.get(card_url)
         card_resp.raise_for_status()
         agent_card = AgentCard.model_validate(card_resp.json())
 
-        # Build deprecated (legacy) A2AClient — straightforward for send_message
         client = A2AClient(httpx_client=http_client, agent_card=agent_card)
-
-        # Build message with trace metadata
         message = Message(
             role=Role.user,
             parts=[Part(root=TextPart(text=question))],
@@ -66,19 +101,12 @@ async def delegate(
                 "delegation_depth": depth,
             },
         )
-
         request = SendMessageRequest(
             id=str(uuid4()),
             params=MessageSendParams(message=message),
         )
-
-        logger.debug(
-            "Delegating to %s (depth=%d, trace=%s)", endpoint, depth, trace_id
-        )
-
+        logger.debug("Delegating to %s (depth=%d, trace=%s)", endpoint, depth, trace_id)
         response = await client.send_message(request)
-
-        # Extract text from SendMessageResponse
         return _extract_text(response)
 
 

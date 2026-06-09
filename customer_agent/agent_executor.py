@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from uuid import uuid4
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
@@ -15,6 +15,9 @@ from a2a.types import Part, TextPart
 from customer_agent.graph import build_graph
 
 logger = logging.getLogger(__name__)
+
+MAX_HISTORY_MESSAGES = 8
+_conversation_memory: dict[str, list[BaseMessage]] = {}
 
 
 class CustomerAgentExecutor(AgentExecutor):
@@ -47,8 +50,10 @@ class CustomerAgentExecutor(AgentExecutor):
                 depth=depth,
             )
 
+            history = _conversation_memory.get(context_id, [])
+            input_message = HumanMessage(content=question)
             result = await graph.ainvoke(
-                {"messages": [HumanMessage(content=question)]},
+                {"messages": [*history, input_message]},
                 config={"configurable": {"thread_id": context_id}},
             )
 
@@ -73,6 +78,9 @@ class CustomerAgentExecutor(AgentExecutor):
 
             if not answer:
                 answer = "I was unable to process your legal question at this time."
+
+            updated_history = [*history, input_message, AIMessage(content=answer)]
+            _conversation_memory[context_id] = updated_history[-MAX_HISTORY_MESSAGES:]
 
             await updater.add_artifact(
                 parts=[Part(root=TextPart(text=answer))],

@@ -30,6 +30,9 @@ When answering, be precise about:
 4. The distinction between the company's liability and individual liability
    for executives who directed the evasion
 
+Keep your response concise: use short sections or bullets and focus only on
+tax-specific consequences relevant to the question.
+
 Always note that your response is for educational purposes and the user
 should consult a licensed attorney for specific legal advice.
 """
