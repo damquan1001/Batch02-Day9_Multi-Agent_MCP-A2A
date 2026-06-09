@@ -44,42 +44,69 @@ async def delegate(
     Returns:
         The agent's text response, or an empty string if none could be extracted.
     """
-    async with httpx.AsyncClient(timeout=300.0) as http_client:
-        # Fetch agent card
-        card_url = f"{endpoint}/.well-known/agent.json"
-        card_resp = await http_client.get(card_url)
-        card_resp.raise_for_status()
-        agent_card = AgentCard.model_validate(card_resp.json())
+    import os
+    import asyncio
 
-        # Build deprecated (legacy) A2AClient — straightforward for send_message
-        client = A2AClient(httpx_client=http_client, agent_card=agent_card)
+    max_retries = 3
+    initial_delay = 1.0
+    backoff_factor = 2.0
+    delay = initial_delay
 
-        # Build message with trace metadata
-        message = Message(
-            role=Role.user,
-            parts=[Part(root=TextPart(text=question))],
-            message_id=str(uuid4()),
-            context_id=context_id,
-            metadata={
-                "trace_id": trace_id,
-                "context_id": context_id,
-                "delegation_depth": depth,
-            },
-        )
+    headers = {"X-API-Key": os.getenv("A2A_API_KEY", "secret-a2a-key")}
 
-        request = SendMessageRequest(
-            id=str(uuid4()),
-            params=MessageSendParams(message=message),
-        )
+    for attempt in range(1, max_retries + 1):
+        try:
+            async with httpx.AsyncClient(timeout=600.0, headers=headers) as http_client:
+                # Fetch agent card
+                card_url = f"{endpoint}/.well-known/agent.json"
+                card_resp = await http_client.get(card_url)
+                card_resp.raise_for_status()
+                agent_card = AgentCard.model_validate(card_resp.json())
 
-        logger.debug(
-            "Delegating to %s (depth=%d, trace=%s)", endpoint, depth, trace_id
-        )
+                # Build deprecated (legacy) A2AClient — straightforward for send_message
+                client = A2AClient(httpx_client=http_client, agent_card=agent_card)
 
-        response = await client.send_message(request)
+                # Build message with trace metadata
+                message = Message(
+                    role=Role.user,
+                    parts=[Part(root=TextPart(text=question))],
+                    message_id=str(uuid4()),
+                    context_id=context_id,
+                    metadata={
+                        "trace_id": trace_id,
+                        "context_id": context_id,
+                        "delegation_depth": depth,
+                    },
+                )
 
-        # Extract text from SendMessageResponse
-        return _extract_text(response)
+                request = SendMessageRequest(
+                    id=str(uuid4()),
+                    params=MessageSendParams(message=message),
+                )
+
+                logger.debug(
+                    "Delegating to %s (depth=%d, trace=%s, attempt=%d)",
+                    endpoint, depth, trace_id, attempt
+                )
+
+                response = await client.send_message(request)
+
+                # Extract text from SendMessageResponse
+                return _extract_text(response)
+        except Exception as exc:
+            if attempt == max_retries:
+                logger.error(
+                    "Delegation to %s failed after %d attempts: %s",
+                    endpoint, max_retries, exc
+                )
+                raise exc
+            logger.warning(
+                "Delegation to %s failed (attempt %d/%d): %s. Retrying in %.2fs...",
+                endpoint, attempt, max_retries, exc, delay
+            )
+            await asyncio.sleep(delay)
+            delay *= backoff_factor
+
 
 
 def _extract_text(response: object) -> str:

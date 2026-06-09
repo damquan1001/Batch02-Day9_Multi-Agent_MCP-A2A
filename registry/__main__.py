@@ -27,7 +27,11 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="A2A Registry", version="1.0.0")
 
+from common.auth import verify_api_key_middleware
+app.middleware("http")(verify_api_key_middleware)
+
 # In-memory store: agent_name -> agent info dict
+
 agents: dict[str, dict[str, Any]] = {}
 
 

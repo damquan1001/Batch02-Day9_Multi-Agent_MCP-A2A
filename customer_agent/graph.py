@@ -18,6 +18,7 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 
 from common.llm import get_llm
+from langgraph.checkpoint.memory import MemorySaver
 
 logger = logging.getLogger(__name__)
 
@@ -92,5 +93,10 @@ def build_graph(trace_id: str, context_id: str, depth: int) -> Any:
         model=llm,
         tools=[delegate_to_legal_agent],
         prompt=CUSTOMER_SYSTEM_PROMPT,
+        checkpointer=memory_saver,
     )
     return graph
+
+
+# Global memory saver to preserve conversation history across requests
+memory_saver = MemorySaver()

@@ -25,7 +25,10 @@ async def main() -> None:
     print(f"Question: {QUESTION}")
     print("-" * 60)
 
-    async with httpx.AsyncClient(timeout=300.0) as http_client:
+    api_key = os.getenv("A2A_API_KEY", "secret-a2a-key")
+    headers = {"X-API-Key": api_key}
+
+    async with httpx.AsyncClient(timeout=600.0, headers=headers) as http_client:
         # Resolve agent card
         card_url = f"{CUSTOMER_AGENT_URL}/.well-known/agent.json"
         try:
@@ -48,50 +51,88 @@ async def main() -> None:
         # Build the legacy A2AClient
         client = A2AClient(httpx_client=http_client, agent_card=agent_card)
 
-        # Construct the message
+        # Share context ID across both messages to test memory
+        shared_context_id = str(uuid4())
+
+        # Construct the first message
         from a2a.types import SendMessageRequest, MessageSendParams as MSP
-        message = Message(
+        message1 = Message(
             role=Role.user,
             parts=[Part(root=TextPart(text=QUESTION))],
             message_id=str(uuid4()),
+            context_id=shared_context_id,
         )
-        request = SendMessageRequest(
+        request1 = SendMessageRequest(
             id=str(uuid4()),
-            params=MSP(message=message),
+            params=MSP(message=message1),
         )
 
-        print("Sending request (this may take 30-60s while agents chain)...\n")
-        response = await client.send_message(request)
+        print("Sending Turn 1 request (this may take 30-60s while agents chain)...\n")
+        response1 = await client.send_message(request1)
 
-        # Parse response
-        result_text = ""
-        if hasattr(response, "root"):
-            root = response.root
-            if hasattr(root, "result"):
-                result = root.result
-                # Task with artifacts
-                if hasattr(result, "artifacts") and result.artifacts:
-                    for artifact in result.artifacts:
-                        for part in artifact.parts:
+        # Parse first response
+        def parse_text(response) -> str:
+            result_text = ""
+            if hasattr(response, "root"):
+                root = response.root
+                if hasattr(root, "result"):
+                    result = root.result
+                    # Task with artifacts
+                    if hasattr(result, "artifacts") and result.artifacts:
+                        for artifact in result.artifacts:
+                            for part in artifact.parts:
+                                p = part.root if hasattr(part, "root") else part
+                                if hasattr(p, "text"):
+                                    result_text += p.text
+                    # Message with parts
+                    elif hasattr(result, "parts") and result.parts:
+                        for part in result.parts:
                             p = part.root if hasattr(part, "root") else part
                             if hasattr(p, "text"):
                                 result_text += p.text
-                # Message with parts
-                elif hasattr(result, "parts") and result.parts:
-                    for part in result.parts:
-                        p = part.root if hasattr(part, "root") else part
-                        if hasattr(p, "text"):
-                            result_text += p.text
+            return result_text
 
-        if result_text:
-            print("RESPONSE:")
+        result_text1 = parse_text(response1)
+        if result_text1:
+            print("TURN 1 RESPONSE:")
             print("=" * 60)
-            print(result_text)
+            print(result_text1)
             print("=" * 60)
         else:
-            print("No text response received. Raw response:")
-            print(response)
+            print("No text response received for Turn 1. Raw response:")
+            print(response1)
+            return
+
+        # Turn 2: Follow-up question in the same context
+        print("\n" + "-" * 60)
+        QUESTION_2 = "What was the first question I asked you? Please repeat it."
+        print(f"Sending Turn 2 (Follow-up) request...")
+        print(f"Question: {QUESTION_2}")
+        print("-" * 60 + "\n")
+
+        message2 = Message(
+            role=Role.user,
+            parts=[Part(root=TextPart(text=QUESTION_2))],
+            message_id=str(uuid4()),
+            context_id=shared_context_id,
+        )
+        request2 = SendMessageRequest(
+            id=str(uuid4()),
+            params=MSP(message=message2),
+        )
+
+        response2 = await client.send_message(request2)
+        result_text2 = parse_text(response2)
+
+        if result_text2:
+            print("TURN 2 RESPONSE:")
+            print("=" * 60)
+            print(result_text2)
+            print("=" * 60)
+        else:
+            print("No text response received for Turn 2. Raw response:")
+            print(response2)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main())
