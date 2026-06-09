@@ -19,12 +19,13 @@ app = FastAPI(title="A2A Synthesizer Agent")
 class ChatRequest(BaseModel):
     query: str
     history: list = []
+    context: str = ""
 
 @app.post("/generate")
 def generate(request: ChatRequest):
     try:
         llm = get_llm()
-        sys_msg = SystemMessage(content="Bạn là Synthesizer. Dựa vào nội dung đã thu thập (nếu có), hãy tổng hợp câu trả lời cuối cùng một cách thân thiện.")
+        sys_msg = SystemMessage(content=f"Bạn là Tổng hợp viên (Synthesizer). Dựa vào nội dung đã thu thập được từ các chuyên gia khác dưới đây, hãy tổng hợp câu trả lời cuối cùng một cách thân thiện, súc tích và dễ hiểu nhất cho người dùng.\n\n[Dữ liệu thu thập]:\n{request.context}")
         response = llm.invoke([sys_msg, HumanMessage(content=request.query)])
         return {
             "answer": response.content,

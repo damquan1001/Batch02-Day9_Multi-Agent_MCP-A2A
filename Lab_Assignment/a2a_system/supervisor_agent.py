@@ -52,6 +52,24 @@ Hãy CHỈ trả về đúng 1 từ: 'legal_rag', 'web_search', hoặc 'synthesi
         resp = requests.post(url, json=request.model_dump(), timeout=60)
         resp.raise_for_status()
         data = resp.json()
+        
+        # Bổ sung: Đi qua Synthesizer (LLM synthesis cuối) để tổng hợp lại câu trả lời
+        if next_route in ["legal_rag", "web_search"]:
+            trace.append(f"{next_route} ➡️ Chuyển dữ liệu cho Synthesizer tổng hợp")
+            synth_payload = request.model_dump()
+            synth_payload["context"] = data.get("answer", "")
+            
+            synth_url = f"http://localhost:{ports['synthesizer']}/generate"
+            synth_resp = requests.post(synth_url, json=synth_payload, timeout=60)
+            synth_resp.raise_for_status()
+            synth_data = synth_resp.json()
+            
+            return {
+                "answer": synth_data.get("answer", ""),
+                "sources": data.get("sources", []),
+                "trace": trace + data.get("trace", []) + synth_data.get("trace", [])
+            }
+        
         return {
             "answer": data.get("answer", ""),
             "sources": data.get("sources", []),
