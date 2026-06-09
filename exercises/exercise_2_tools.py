@@ -7,6 +7,9 @@ import asyncio
 import os
 import sys
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from dotenv import load_dotenv
@@ -56,12 +59,16 @@ def check_statute_of_limitations(case_type: str) -> str:
     Args:
         case_type: Loại vụ án (contract, tort, property)
     """
+    case_type_lower = case_type.lower()
+    if "contract" in case_type_lower or "hợp đồng" in case_type_lower or "hop dong" in case_type_lower:
+        return "4 năm (UCC § 2-725)"
+
     limits = {
         "contract": "4 năm (UCC § 2-725)",
         "tort": "2-3 năm tùy bang",
         "property": "5 năm",
     }
-    return limits.get(case_type.lower(), "Không xác định")
+    return limits.get(case_type_lower, "Không xác định")
 
 
 async def main():
@@ -74,7 +81,12 @@ async def main():
     question = "Thời hiệu khởi kiện vụ vi phạm hợp đồng là bao lâu?"
     
     messages = [
-        SystemMessage(content="Bạn là chuyên gia pháp lý. Sử dụng tools để tra cứu thông tin."),
+        SystemMessage(
+            content=(
+                "Bạn là chuyên gia pháp lý. Sử dụng tools để tra cứu thông tin. "
+                "Khi tool trả về thời hiệu, hãy dùng đúng kết quả đó và không tự suy diễn nguồn luật khác."
+            )
+        ),
         HumanMessage(content=question),
     ]
     
@@ -96,6 +108,7 @@ async def main():
                 tool_result = check_statute_of_limitations.invoke(tool_call["args"])
             
             if tool_result:
+                print(f"   Kết quả tool: {tool_result}")
                 messages.append(ToolMessage(content=tool_result, tool_call_id=tool_call["id"]))
         
         # Second LLM call - synthesize final answer

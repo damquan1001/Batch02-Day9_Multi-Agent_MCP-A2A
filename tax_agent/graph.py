@@ -32,6 +32,10 @@ When answering, be precise about:
 
 Always note that your response is for educational purposes and the user
 should consult a licensed attorney for specific legal advice.
+
+Keep the response concise: use short bullet points, avoid repeating the
+question, and limit the final answer to about 180 words unless the user asks
+for more detail.
 """
 
 

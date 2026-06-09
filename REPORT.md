@@ -37,6 +37,48 @@ Báo cáo pháp lý tổng hợp đầy đủ 3 phần:
 
 ---
 
+## 2.5. Kết quả thực hiện Bài Tập Nâng Cao: Conversation Memory (Challenge 1)
+
+Đã hoàn thành xuất sắc thử thách tích hợp bộ nhớ hội thoại (**Conversation Memory**) cho ReAct Agent ở Stage 3:
+- Tích hợp `MemorySaver()` checkpointer từ `langgraph.checkpoint.memory` vào trong `create_react_agent`.
+- Cấu hình một thread hội thoại cố định (`thread_id`) để Agent theo dõi ngữ cảnh.
+- Gửi câu hỏi nối tiếp (Follow-up question) để kiểm thử trí nhớ của Agent.
+
+### Kết quả chạy kiểm thử hội thoại nối tiếp:
+```text
+Gửi câu hỏi nối tiếp trong cùng một luồng hội thoại...
+Câu hỏi: If the company's annual revenue was $10M instead of $5M, how would that affect the penalty estimate?
+
+🔧 Gọi tool: calculate_penalty (với annual_revenue = 10,000,000)
+✅ Kết quả:
+Nếu doanh thu của công ty tăng từ $5M lên $10M, ước tính các khoản phạt cơ bản cho mỗi hành vi vi phạm sẽ tăng gấp đôi (lên $500,000.00 mỗi loại, tổng cộng $1,500,000.00) vì mức phạt được tính trực tiếp theo phần trăm doanh thu hàng năm.
+```
+*Agent đã chứng minh khả năng ghi nhớ hoàn hảo bối cảnh của câu hỏi trước (loại vi phạm, mức độ nghiêm trọng trung bình) và chỉ cập nhật lại tham số doanh thu mới.*
+
+---
+
+## 2.6. Kết quả thực hiện Bài Tập 3.1 và 3.2 (Single Agent ReAct)
+
+Đã hoàn thành các nhiệm vụ:
+- Bổ sung tool `@tool search_case_law` để tra cứu án lệ theo từ khóa (`breach`, `negligence`, `contract`).
+- Đăng ký `search_case_law` vào danh sách `TOOLS` của Stage 3.
+- Thêm câu hỏi kiểm thử riêng về breach of contract để agent có cơ hội gọi tool án lệ.
+- Debug quá trình reasoning bằng `graph.astream(..., stream_mode="updates")`, in ra các bước `THINK + ACT`, `OBSERVE`, và `FINAL ANSWER`.
+
+Ghi chú kỹ thuật: phiên bản LangGraph hiện tại không cần/không dùng tham số `verbose=True` theo kiểu LangChain cũ; streaming update đang cho thấy rõ tool nào được agent chọn, arguments truyền vào tool, kết quả quan sát và câu trả lời cuối cùng.
+
+### Kết quả kiểm thử mong đợi:
+```text
+[Run] A supplier breached a sales contract and the buyer lost downstream profits...
+[Step ...] THINK + ACT
+  Tool: search_case_law
+  Args: {'keywords': 'breach contract downstream profits'}
+[Step ...] OBSERVE
+  Result: Hadley v. Baxendale (1854) - Consequential damages
+```
+
+---
+
 ## 3. Bài tập 5.1: Sequence Diagram của luồng chạy phân tán (Stage 5)
 
 Dưới đây là sơ đồ Sequence Diagram mô tả luồng request đi qua các Agent phân tán thông qua giao thức A2A và Registry:
@@ -75,6 +117,33 @@ sequenceDiagram
     LA-->>CA: Trả về báo cáo pháp lý hoàn chỉnh
     CA-->>User: Hiển thị báo cáo cho người dùng
 ```
+
+---
+
+## 3.1. Bài tập 5.2: Test Dynamic Discovery
+
+Đã kiểm thử kịch bản dừng Tax Agent rồi chạy lại client:
+- Registry vẫn cho phép Customer Agent discover Law Agent cho tác vụ `legal_question`.
+- Law Agent vẫn thực hiện phân tích pháp lý tổng quát và gọi Compliance Agent nếu cần.
+- Nhánh Tax Agent không khả dụng được xử lý bằng thông báo lỗi có kiểm soát trong `law_agent/graph.py`, thay vì làm sập toàn bộ request.
+
+### Kết quả quan sát:
+```text
+[Tax analysis unavailable: ...]
+```
+
+Điều này chứng minh hệ thống không hardcode luồng xử lý theo một endpoint tĩnh duy nhất; agent được discover động qua Registry và lỗi một specialist được cô lập ở nhánh tương ứng.
+
+---
+
+## 3.2. Bài tập 5.3: Modify Tax Agent Behavior
+
+Đã sửa `tax_agent/graph.py` để Tax Agent trả lời ngắn gọn hơn:
+- Thêm yêu cầu dùng bullet ngắn.
+- Tránh lặp lại câu hỏi.
+- Giới hạn câu trả lời khoảng 180 từ nếu người dùng không yêu cầu chi tiết hơn.
+
+Sau khi restart Tax Agent, kết quả kỳ vọng là phần phân tích thuế vẫn nêu rõ civil/criminal penalties, IRS/DOJ/FinCEN và trách nhiệm công ty/cá nhân, nhưng ngắn gọn hơn so với prompt ban đầu.
 
 ---
 

@@ -172,18 +172,47 @@ def check_compliance_requirements(industry: str, company_size: str) -> str:
     )
 
 
-TOOLS = [search_legal_database, calculate_penalty, check_compliance_requirements]
+@tool
+def search_case_law(keywords: str) -> str:
+    """Search case law by keyword.
+
+    Args:
+        keywords: Keywords to search for.
+    """
+    cases = {
+        "breach": "Hadley v. Baxendale (1854) - Consequential damages",
+        "negligence": "Donoghue v. Stevenson (1932) - Duty of care",
+        "contract": "Carlill v. Carbolic Smoke Ball Co (1893) - Unilateral contract",
+    }
+    keywords_lower = keywords.lower()
+    for key, case in cases.items():
+        if key in keywords_lower:
+            return case
+    return "No matching case law found."
+
+
+TOOLS = [
+    search_legal_database,
+    calculate_penalty,
+    check_compliance_requirements,
+    search_case_law,
+]
 
 QUESTION = (
     "A tech startup with $5M revenue was caught sharing user data without consent "
     "and failed to pay taxes on overseas revenue. What are all the legal consequences?"
 )
 
+BREACH_CASE_QUESTION = (
+    "A supplier breached a sales contract and the buyer lost downstream profits. "
+    "Which case law and contract remedies are relevant?"
+)
+
 SYSTEM_PROMPT = (
     "You are a legal analyst agent. You have access to tools for searching legal databases, "
-    "calculating penalties, and checking compliance requirements. Use these tools to build "
+    "case law, calculating penalties, and checking compliance requirements. Use these tools to build "
     "a comprehensive analysis. Search for each legal area separately — data privacy, tax, "
-    "and compliance. Keep your final answer under 500 words."
+    "compliance, and case law when a question involves breach of contract. Keep your final answer under 500 words."
 )
 
 
@@ -201,33 +230,36 @@ async def main():
     print("  4. It observes the result and decides next steps (Observe)")
     print("  5. It repeats until it has enough information for a final answer")
     print()
+    print("Debug mode: create_react_agent(..., debug=True) plus stream updates prints THINK/ACT/OBSERVE steps.")
     print(f"Question: {QUESTION}")
     print("-" * 70)
 
     llm = get_llm()
-    graph = create_react_agent(model=llm, tools=TOOLS, prompt=SYSTEM_PROMPT)
+    graph = create_react_agent(model=llm, tools=TOOLS, prompt=SYSTEM_PROMPT, debug=True)
 
-    inputs = {"messages": [{"role": "user", "content": QUESTION}]}
+    for question in [QUESTION, BREACH_CASE_QUESTION]:
+        inputs = {"messages": [{"role": "user", "content": question}]}
+        print(f"\n[Run] {question}")
 
-    step = 0
-    async for chunk in graph.astream(inputs, stream_mode="updates"):
-        for node_name, update in chunk.items():
-            step += 1
-            messages = update.get("messages", [])
-            for msg in messages:
-                if hasattr(msg, "tool_calls") and msg.tool_calls:
-                    print(f"\n[Step {step}] THINK + ACT (node: {node_name})")
-                    for tc in msg.tool_calls:
-                        print(f"  Tool: {tc['name']}")
-                        print(f"  Args: {tc['args']}")
-                elif msg.type == "tool":
-                    print(f"\n[Step {step}] OBSERVE (node: {node_name})")
-                    content = msg.content
-                    print(f"  Result: {content[:300]}{'...' if len(content) > 300 else ''}")
-                elif msg.type == "ai" and msg.content:
-                    print(f"\n[Step {step}] FINAL ANSWER (node: {node_name})")
-                    print("-" * 70)
-                    print(msg.content)
+        step = 0
+        async for chunk in graph.astream(inputs, stream_mode="updates"):
+            for node_name, update in chunk.items():
+                step += 1
+                messages = update.get("messages", [])
+                for msg in messages:
+                    if hasattr(msg, "tool_calls") and msg.tool_calls:
+                        print(f"\n[Step {step}] THINK + ACT (node: {node_name})")
+                        for tc in msg.tool_calls:
+                            print(f"  Tool: {tc['name']}")
+                            print(f"  Args: {tc['args']}")
+                    elif msg.type == "tool":
+                        print(f"\n[Step {step}] OBSERVE (node: {node_name})")
+                        content = msg.content
+                        print(f"  Result: {content[:300]}{'...' if len(content) > 300 else ''}")
+                    elif msg.type == "ai" and msg.content:
+                        print(f"\n[Step {step}] FINAL ANSWER (node: {node_name})")
+                        print("-" * 70)
+                        print(msg.content)
 
     print()
     print("-" * 70)

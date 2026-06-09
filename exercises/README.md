@@ -39,29 +39,18 @@ uv run python exercises/exercise_4_multiagent.py
 
 ---
 
-## Đáp Án
-
-Đáp án chi tiết có trong file `SOLUTIONS.md`. 
-
-**⚠️ Lưu ý:** Hãy cố gắng tự làm trước khi xem đáp án!
-
----
-
 ## Hướng Dẫn Làm Bài
 
-### 1. Đọc TODO Comments
-Mỗi file có các comment `# TODO:` chỉ ra chỗ cần điền code.
+### 1. Đọc nhiệm vụ trong từng file
+Mỗi file bài tập có phần mô tả mục tiêu và các bước cần kiểm thử.
 
-### 2. Tìm Gợi Ý
-Các comment `# Gợi ý:` cho biết hướng làm.
-
-### 3. Tham Khảo Stages
+### 2. Tham Khảo Stages
 Code trong `stages/*` là examples tốt để tham khảo.
 
-### 4. Test Thường Xuyên
+### 3. Test Thường Xuyên
 Sau mỗi thay đổi, chạy lại để kiểm tra.
 
-### 5. Debug
+### 4. Debug
 Nếu lỗi:
 - Đọc error message cẩn thận
 - Check syntax (dấu ngoặc, indentation)
@@ -110,6 +99,6 @@ Nếu gặp khó khăn:
 1. Đọc lại phần lý thuyết trong `CODELAB.md`
 2. Xem `QUICK_REFERENCE.md` cho syntax
 3. Hỏi bạn bè hoặc giảng viên
-4. Check `SOLUTIONS.md` (last resort!)
+4. Đối chiếu với code mẫu trong `stages/`
 
 **Chúc bạn làm bài tốt! 💪**

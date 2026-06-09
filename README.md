@@ -79,7 +79,7 @@ Codelab hướng dẫn từng bước xây dựng multi-agent system, từ cơ b
 - **[INSTRUCTOR_GUIDE.md](INSTRUCTOR_GUIDE.md)** - Hướng dẫn cho giảng viên
 - **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - Tài liệu tham khảo nhanh
 - **[exercises/](exercises/)** - Bài tập thực hành với skeleton code
-- **[REPORT.md](REPORT.md)** - **[Báo Cáo Thực Hành & Trả Lời Câu Hỏi Codelab]** 📝 *(Chứa câu trả lời lý thuyết Phần 6, kết quả các bài tập và Sequence Diagram)*
+- **[Lab-Solution.md](Lab-Solution.md)** - **[Báo Cáo Thực Hành & Trả Lời Câu Hỏi Codelab]** 📝 *(Nơi lưu câu trả lời lý thuyết Phần 6, kết quả các bài tập và Sequence Diagram của toàn bộ 5 stage)*
 
 ### Lộ Trình Học
 
@@ -140,7 +140,7 @@ No servers needed — each demo runs as a standalone script:
 uv run python stages/stage_1_direct_llm/main.py
 uv run python stages/stage_2_rag_tools/main.py
 uv run python stages/stage_3_single_agent/main.py
-uv run python stages/stage_4_multi_agent/main.py
+uv run python stages/stage_4_milti_agent/main.py
 ```
 
 ## LLM Evolution Stages
@@ -181,7 +181,7 @@ legal_multiagent/
 │   ├── stage_1_direct_llm/
 │   ├── stage_2_rag_tools/
 │   ├── stage_3_single_agent/
-│   └── stage_4_multi_agent/
+│   └── stage_4_milti_agent/
 │
 └── docs/                      # Architecture diagrams (SVG)
 ```
