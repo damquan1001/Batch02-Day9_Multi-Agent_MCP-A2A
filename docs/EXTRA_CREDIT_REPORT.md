@@ -8,6 +8,7 @@ This report covers the optional / extra-credit work from `CODELAB.md`:
 - Dynamic discovery test by stopping Tax Agent
 - Latency measurement and latency-reduction proposal
 - Optional extensions: retry logic, auth, monitoring, memory, and Financial Agent
+- MCP external capability used by one worker agent
 
 ## Request Flow Trace
 
@@ -212,3 +213,34 @@ The in-process multi-agent exercises now include a Financial Agent for:
 - business interruption
 - insurance / deductible exposure
 - compliance upgrade costs
+
+### MCP External Capability
+
+Tax Agent now uses an external MCP-style tax law tool server:
+
+```text
+Tax Agent worker
+    -> search_tax_code_mcp LangChain tool
+    -> common.mcp_client stdio JSON-RPC client
+    -> mcp_tools.tax_law_server external process
+    -> tools/call search_tax_code
+    -> statute / penalty references
+```
+
+This satisfies the lab requirement:
+
+```text
+Chọn 1 worker dùng external capability qua MCP
+```
+
+The external server supports MCP-like JSON-RPC methods:
+
+- `initialize`
+- `tools/list`
+- `tools/call`
+
+Smoke test command:
+
+```bash
+uv run python -c "import asyncio; from common.mcp_client import call_tax_code_mcp; print(asyncio.run(call_tax_code_mcp('FBAR FATCA penalty')))"
+```

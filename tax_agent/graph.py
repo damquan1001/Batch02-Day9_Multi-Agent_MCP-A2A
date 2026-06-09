@@ -1,11 +1,12 @@
 """Tax Agent LangGraph definition.
 
 Uses create_react_agent with a tax-specialised system prompt.
-No tools — it answers purely from LLM knowledge.
+It can call an external MCP-style tax-law reference tool.
 """
 
 from __future__ import annotations
 
+from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 
 from common.llm import get_llm
@@ -32,10 +33,24 @@ When answering, be precise about:
 
 Keep your response concise: use short sections or bullets and focus only on
 tax-specific consequences relevant to the question.
+Use the `search_tax_code_mcp` tool when you need statute-specific tax penalties,
+FBAR/FATCA details, or responsible-person liability details.
 
 Always note that your response is for educational purposes and the user
 should consult a licensed attorney for specific legal advice.
 """
+
+
+@tool
+async def search_tax_code_mcp(query: str) -> str:
+    """Search external tax law references through an MCP tool server.
+
+    Args:
+        query: Tax law query about statutes, penalties, FBAR/FATCA, or officer liability.
+    """
+    from common.mcp_client import call_tax_code_mcp
+
+    return await call_tax_code_mcp(query)
 
 
 def create_graph():
@@ -43,7 +58,7 @@ def create_graph():
     llm = get_llm()
     graph = create_react_agent(
         model=llm,
-        tools=[],
+        tools=[search_tax_code_mcp],
         prompt=TAX_SYSTEM_PROMPT,
     )
     return graph
