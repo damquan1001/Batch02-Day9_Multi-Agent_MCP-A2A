@@ -13,7 +13,7 @@ from src.module_rag_core.ports.outbound import LLMServicePort
 
 
 class GeminiGenerativeAIAdapter(LLMServicePort):
-    """Outbound adapter for Gemini, with an offline fallback for local demos."""
+    """Outbound adapter for Gemini with extractive behavior when Gemini is unavailable."""
 
     def __init__(self) -> None:
         self.api_key: Optional[str] = None
@@ -35,7 +35,7 @@ class GeminiGenerativeAIAdapter(LLMServicePort):
 
     def embed_query(self, query: str) -> List[float]:
         if not self.api_key or genai is None:
-            return [0.0] * 1024
+            return []
 
         for model_name in ["models/text-embedding-004", "models/embedding-001"]:
             try:
@@ -50,7 +50,7 @@ class GeminiGenerativeAIAdapter(LLMServicePort):
                     return response.embedding
             except Exception as exc:
                 print(f"Gemini embed_content error with {model_name}: {exc}")
-        return [0.0] * 1024
+        return []
 
     def condense_query(
         self,
@@ -96,7 +96,7 @@ class GeminiGenerativeAIAdapter(LLMServicePort):
         query: str,
     ) -> str:
         if not self.api_key or genai is None:
-            return self._offline_answer(context=context, query=query)
+            return self._extractive_answer(context=context, query=query)
 
         prompt = (
             f"System: {system_prompt}\n\n"
@@ -116,14 +116,12 @@ class GeminiGenerativeAIAdapter(LLMServicePort):
             return response.text.strip()
         except Exception as exc:
             print(f"Gemini generate_answer error: {exc}")
-            return self._offline_answer(context=context, query=query)
+            return self._extractive_answer(context=context, query=query)
 
-    def _offline_answer(self, context: str, query: str) -> str:
+    def _extractive_answer(self, context: str, query: str) -> str:
         blocks = self._parse_context_blocks(context)
         if not blocks:
-            return (
-                "Toi khong the xac minh thong tin nay tu cac tai lieu hien co."
-            )
+            return "Tôi không thể xác minh thông tin này từ các tài liệu hiện có."
 
         bullets = []
         for source, content in blocks[:2]:
@@ -131,8 +129,8 @@ class GeminiGenerativeAIAdapter(LLMServicePort):
             bullets.append(f"- {snippet} [{source}]")
 
         return (
-            "Tra loi du thao offline cho cau hoi: "
-            f"{query}\n\n"
+            "Không gọi được Gemini trong môi trường hiện tại. Dưới đây là phần "
+            f"trích xuất trực tiếp từ tài liệu cho câu hỏi: {query}\n\n"
             + "\n".join(bullets)
         )
 
