@@ -41,13 +41,19 @@ def search_legal_knowledge(query: str) -> str:
     return "Không tìm thấy thông tin liên quan."
 
 
-# TODO: Tạo tool check_statute_of_limitations
-# Gợi ý: nhận case_type (str), trả về thời hiệu khởi kiện
-# @tool
-# def check_statute_of_limitations(case_type: str) -> str:
-#     """Kiểm tra thời hiệu khởi kiện."""
-#     # YOUR CODE HERE
-#     pass
+@tool
+def check_statute_of_limitations(case_type: str) -> str:
+    """Kiểm tra thời hiệu khởi kiện theo loại vụ án.
+    
+    Args:
+        case_type: Loại vụ án (contract, tort, property)
+    """
+    limits = {
+        "contract": "4 năm (UCC § 2-725)",
+        "tort": "2-3 năm tùy bang",
+        "property": "5 năm",
+    }
+    return limits.get(case_type.lower(), "Không xác định")
 
 
 async def main():

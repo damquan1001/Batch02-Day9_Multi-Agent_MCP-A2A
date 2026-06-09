@@ -361,3 +361,7 @@ async def main():
 if __name__ == "__main__":
     load_dotenv()
     asyncio.run(main())
+
+    # Thêm vào cuối file main.py
+from IPython.display import Image, display
+display(Image(graph.get_graph().draw_mermaid_png()))
