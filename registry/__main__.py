@@ -19,6 +19,9 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from common.monitoring import add_monitoring
+from common.security import add_api_key_middleware
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [registry] %(levelname)s %(message)s",
@@ -26,6 +29,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="A2A Registry", version="1.0.0")
+add_monitoring(app, "registry")
+add_api_key_middleware(app)
 
 # In-memory store: agent_name -> agent info dict
 agents: dict[str, dict[str, Any]] = {}

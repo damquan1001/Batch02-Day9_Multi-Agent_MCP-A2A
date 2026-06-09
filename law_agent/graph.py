@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Annotated, TypedDict
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -79,6 +80,15 @@ async def check_routing(state: LawState) -> dict:
         logger.info("Max delegation depth reached (%d); skipping sub-agents", depth)
         return {"needs_tax": False, "needs_compliance": False}
 
+    if os.getenv("USE_HEURISTIC_ROUTING") == "1":
+        decision = _heuristic_routing(state["question"])
+        logger.info(
+            "Heuristic routing decision: needs_tax=%s needs_compliance=%s",
+            decision["needs_tax"],
+            decision["needs_compliance"],
+        )
+        return decision
+
     llm = get_llm()
     messages = [
         SystemMessage(
@@ -112,6 +122,20 @@ async def check_routing(state: LawState) -> dict:
     needs_tax = bool(parsed.get("needs_tax", True))
     needs_compliance = bool(parsed.get("needs_compliance", True))
     logger.info("Routing decision: needs_tax=%s needs_compliance=%s", needs_tax, needs_compliance)
+    return {"needs_tax": needs_tax, "needs_compliance": needs_compliance}
+
+
+def _heuristic_routing(question: str) -> dict:
+    """Low-latency routing mode for demos and latency comparisons."""
+    lowered = question.lower()
+    needs_tax = any(
+        keyword in lowered
+        for keyword in ["tax", "irs", "thuế", "evasion", "avoid", "fbar", "fatca"]
+    )
+    needs_compliance = any(
+        keyword in lowered
+        for keyword in ["compliance", "regulatory", "sec", "sox", "aml", "fcpa", "gdpr", "data"]
+    )
     return {"needs_tax": needs_tax, "needs_compliance": needs_compliance}
 
 
