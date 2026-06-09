@@ -4,7 +4,7 @@ from system_contracts import ChatMessage, Document, RAGAnswer, RAGConfig, RAGCor
 
 
 class DevelopmentRAGCore(RAGCoreInterface):
-    """Contract-compatible fallback until the real RAGCoreEngine is available."""
+    """Contract-compatible local engine used only if the configured engine cannot load."""
 
     def __init__(self) -> None:
         self.config = RAGConfig(gemini_api_key="")
@@ -21,16 +21,17 @@ class DevelopmentRAGCore(RAGCoreInterface):
     ) -> RAGAnswer:
         self.sessions.setdefault(session_id, [])
         answer = (
-            "RAG core is not implemented yet, so this is a UI development response. "
+            "The configured RAG engine could not be loaded, so this local contract "
+            "engine is returning a diagnostic response. "
             f"Your question was: {user_query}\n\n"
-            "When `src.module_rag_core.rag_engine.RAGCoreEngine` is added, this screen "
-            "will call the real retrieval and generation pipeline through `RAGCoreInterface`."
+            "Check the import error shown in the Streamlit sidebar before using this "
+            "session as a live retrieval demo."
         )
         source = Document(
-            id="ui-dev-placeholder",
+            id="ui-local-contract-source",
             content=(
-                "Placeholder source emitted by DevelopmentRAGCore. Replace by implementing "
-                "RAGCoreEngine in the RAG core module."
+                "Diagnostic source emitted by DevelopmentRAGCore when the configured "
+                "RAG engine cannot be imported."
             ),
             metadata={
                 "title": "Development fallback",
