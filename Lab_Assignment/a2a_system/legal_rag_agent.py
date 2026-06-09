@@ -18,10 +18,66 @@ if str(GROUP_PROJECT) not in sys.path:
     sys.path.insert(0, str(GROUP_PROJECT))
 
 from src.module_rag_core.rag_engine import RAGCoreEngine
-from system_contracts import ChatMessage
+from system_contracts import ChatMessage, RAGConfig
 
 app = FastAPI(title="A2A Legal RAG Agent")
 engine = RAGCoreEngine()
+ENGINE_STATUS = "not configured"
+
+
+def _float_env(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _int_env(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _bool_env(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _configure_engine() -> None:
+    """Configure the real RAG engine when keys/services are available.
+
+    If live configuration fails, RAGCoreEngine still has deterministic offline
+    fallbacks. The response trace will make that visible instead of claiming a
+    successful Weaviate lookup.
+    """
+    global ENGINE_STATUS
+    config = RAGConfig(
+        gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
+        llm_model_name=os.getenv("RAG_LLM_MODEL", os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash")),
+        temperature=_float_env("RAG_TEMPERATURE", 0.2),
+        top_k=_int_env("RAG_TOP_K", 5),
+        use_reranker=_bool_env("RAG_USE_RERANKER", True),
+    )
+    try:
+        engine.configure(config)
+        ENGINE_STATUS = "configured"
+    except Exception as exc:
+        ENGINE_STATUS = f"offline fallback: {exc}"
+
+
+def _trace_for_sources(sources: list) -> str:
+    using_offline = any(str(getattr(source, "id", "")).startswith("offline_") for source in sources)
+    if using_offline:
+        if ENGINE_STATUS.startswith("offline fallback"):
+            return f"LegalRAG ➡️ Dùng corpus offline/fallback ({ENGINE_STATUS})"
+        return "LegalRAG ➡️ Dùng corpus offline/fallback (live retrieval không có kết quả phù hợp)"
+    return "LegalRAG ➡️ Truy vấn Weaviate DB thành công"
+
+
+_configure_engine()
 
 class ChatRequest(BaseModel):
     query: str
@@ -35,7 +91,7 @@ def generate(request: ChatRequest):
         return {
             "answer": f"Thông tin từ cơ sở dữ liệu luật:\n{ans.answer}",
             "sources": [s.model_dump() for s in ans.sources],
-            "trace": ["LegalRAG ➡️ Truy vấn Weaviate DB thành công"]
+            "trace": [_trace_for_sources(ans.sources)]
         }
     except Exception as e:
         return {

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import re
+import socket
 import urllib.parse
 from typing import List, Optional
 
@@ -25,6 +27,10 @@ class WeaviateDockerAdapter(VectorStorePort):
         self.class_name = "DrugLawDocs"
 
     def connect(self, url: str, api_key: Optional[str] = None) -> None:
+        if os.getenv("RAG_FORCE_OFFLINE", "").strip() in {"1", "true", "yes", "on"}:
+            self.client = None
+            return
+
         if weaviate is None:
             self.client = None
             return
@@ -39,6 +45,13 @@ class WeaviateDockerAdapter(VectorStorePort):
                 parsed = urllib.parse.urlparse(url)
                 host = parsed.hostname or "localhost"
                 port = parsed.port or 8080
+                if not self._tcp_open(host, port):
+                    print(
+                        f"Warning: Weaviate is not reachable at {host}:{port}. "
+                        "Using fallback documents."
+                    )
+                    self.client = None
+                    return
                 self.client = weaviate.connect_to_local(host=host, port=port)
         except Exception as exc:
             print(
@@ -59,14 +72,22 @@ class WeaviateDockerAdapter(VectorStorePort):
 
         try:
             collection = self.client.collections.get(self.class_name)
-            response = collection.query.hybrid(
-                query=query,
-                vector=vector,
-                alpha=alpha,
-                limit=top_k,
-                return_metadata=MetadataQuery(score=True),
-                include_vector=True,
-            )
+            if vector:
+                response = collection.query.hybrid(
+                    query=query,
+                    vector=vector,
+                    alpha=alpha,
+                    limit=top_k,
+                    return_metadata=MetadataQuery(score=True),
+                    include_vector=True,
+                )
+            else:
+                response = collection.query.bm25(
+                    query=query,
+                    limit=top_k,
+                    return_metadata=MetadataQuery(score=True),
+                    include_vector=True,
+                )
 
             docs = []
             for obj in response.objects:
@@ -95,6 +116,8 @@ class WeaviateDockerAdapter(VectorStorePort):
                         score=obj.metadata.score if obj.metadata else None,
                     )
                 )
+            if self._needs_criminal_penalty_fallback(query, docs):
+                return self._fallback_docs(query=query, top_k=top_k)
             return docs
         except Exception as exc:
             print(f"Weaviate query error: {exc}. Using fallback documents.")
@@ -202,3 +225,29 @@ class WeaviateDockerAdapter(VectorStorePort):
     @staticmethod
     def _is_cloud_url(url: str) -> bool:
         return "weaviate.cloud" in url or "weaviate.network" in url
+
+    @staticmethod
+    def _tcp_open(host: str, port: int, timeout: float = 1.0) -> bool:
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                return True
+        except OSError:
+            return False
+
+    @staticmethod
+    def _needs_criminal_penalty_fallback(query: str, docs: List[Document]) -> bool:
+        query_text = query.lower()
+        asks_penalty = any(
+            keyword in query_text
+            for keyword in ["hinh phat", "hình phạt", "phat tu", "phạt tù", "toi", "tội", "tang tru", "tàng trữ"]
+        )
+        if not asks_penalty:
+            return False
+
+        retrieved_text = " ".join(
+            [doc.content for doc in docs]
+            + [str(doc.metadata.get("source", "")) for doc in docs]
+            + [str(doc.metadata.get("title", "")) for doc in docs]
+        ).lower()
+        criminal_markers = ["điều 249", "dieu 249", "bộ luật hình sự", "bo luat hinh su", "phạt tù", "phat tu"]
+        return not any(marker in retrieved_text for marker in criminal_markers)

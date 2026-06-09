@@ -23,18 +23,48 @@ class ChatRequest(BaseModel):
 
 @app.post("/generate")
 def generate(request: ChatRequest):
+    context = request.context.strip()
+    offline_mode = os.getenv("RAG_FORCE_OFFLINE", "").strip() in {"1", "true", "yes", "on"}
+    if offline_mode or not os.getenv("OPENROUTER_API_KEY", "").strip():
+        return {
+            "answer": context or "Xin chào, bạn có thể hỏi mình về pháp luật phòng chống ma túy.",
+            "sources": [],
+            "trace": ["Synthesizer ➡️ Trả lời fallback vì chưa cấu hình LLM hoặc đang chạy offline"]
+        }
+
     try:
         llm = get_llm()
-        sys_msg = SystemMessage(content=f"Bạn là Tổng hợp viên (Synthesizer). Dựa vào nội dung đã thu thập được từ các chuyên gia khác dưới đây, hãy tổng hợp câu trả lời cuối cùng một cách thân thiện, súc tích và dễ hiểu nhất cho người dùng.\n\n[Dữ liệu thu thập]:\n{request.context}")
+        if context:
+            system_prompt = (
+                "Bạn là Tổng hợp viên (Synthesizer). Chỉ dùng dữ liệu đã thu "
+                "thập bên dưới để viết câu trả lời cuối cùng. Không tự thêm "
+                "căn cứ pháp lý, số liệu, hoặc nguồn mới. Giữ lại citation "
+                "trong ngoặc vuông nếu có. Nếu dữ liệu cho biết đang dùng "
+                "fallback/offline demo, diễn đạt trung thực và ngắn gọn.\n\n"
+                f"[Dữ liệu thu thập]:\n{context}"
+            )
+        else:
+            system_prompt = (
+                "Bạn là trợ lý hội thoại cho hệ thống tư vấn pháp lý. Với câu "
+                "chào hỏi hoặc trao đổi thông thường, trả lời ngắn gọn và mời "
+                "người dùng hỏi về pháp luật phòng chống ma túy. Nếu câu hỏi "
+                "cần kiến thức chuyên môn nhưng chưa có context, nói rằng cần "
+                "chuyển tới worker phù hợp."
+            )
+        sys_msg = SystemMessage(content=system_prompt)
         response = llm.invoke([sys_msg, HumanMessage(content=request.query)])
+        answer = response.content.strip()
+        if not answer:
+            answer = context or "Xin chào, bạn có thể hỏi mình về pháp luật phòng chống ma túy."
         return {
-            "answer": response.content,
+            "answer": answer,
             "sources": [],
             "trace": ["Synthesizer ➡️ Tổng hợp đáp án cuối cùng"]
         }
     except Exception as e:
+        fallback_answer = context or f"Lỗi Synthesizer: {e}"
         return {
-            "answer": f"Lỗi Synthesizer: {e}",
+            "answer": fallback_answer,
             "sources": [],
             "trace": [f"Synthesizer ❌ Lỗi tổng hợp ({e})"]
         }

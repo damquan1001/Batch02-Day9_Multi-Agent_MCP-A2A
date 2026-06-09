@@ -1,3 +1,4 @@
+import os
 import requests
 from typing import List, Sequence
 from system_contracts import RAGCoreInterface, RAGConfig, RAGAnswer, ChatMessage, Document
@@ -8,13 +9,15 @@ class A2ARAGCoreEngine(RAGCoreInterface):
     """
     
     def __init__(self):
-        self.supervisor_url = "http://localhost:10100/generate"
+        self.supervisor_url = os.getenv("A2A_SUPERVISOR_URL", "http://localhost:10100/generate")
+        self.config = None
 
     def configure(self, config: RAGConfig) -> None:
-        pass
+        self.config = config
 
     def clear_session(self, session_id: str) -> None:
-        pass
+        # The A2A supervisor is stateless; UI state owns the conversation history.
+        return None
 
     def generate_answer(
         self, session_id: str, user_query: str, chat_history: List[ChatMessage]

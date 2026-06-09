@@ -17,26 +17,65 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 app = FastAPI(title="A2A Supervisor Agent")
 
+VALID_ROUTES = {"legal_rag", "web_search", "synthesizer"}
+LEGAL_KEYWORDS = {
+    "luật", "pháp luật", "ma túy", "ma tuý", "chat ma tuy", "chất ma túy",
+    "hình phạt", "hinh phat", "tội", "toi", "điều", "dieu", "nghị định",
+    "nghi dinh", "cai nghiện", "cai nghien", "tàng trữ", "tang tru",
+    "mua bán", "mua ban", "vận chuyển", "van chuyen",
+}
+WEB_KEYWORDS = {
+    "tin tức", "tin tuc", "hôm nay", "hom nay", "mới nhất", "moi nhat",
+    "hiện nay", "hien nay", "cập nhật", "cap nhat", "thời sự", "thoi su",
+    "tìm trên mạng", "tim tren mang", "web", "internet",
+}
+
+
+def _heuristic_route(query: str) -> str:
+    lowered = query.lower()
+    if any(keyword in lowered for keyword in WEB_KEYWORDS):
+        return "web_search"
+    if any(keyword in lowered for keyword in LEGAL_KEYWORDS):
+        return "legal_rag"
+    return "synthesizer"
+
+
+def _normalize_route(raw_route: str, query: str) -> str:
+    route = raw_route.strip().lower().strip("`'\" ")
+    if route in VALID_ROUTES:
+        return route
+
+    matches = [candidate for candidate in VALID_ROUTES if candidate in route]
+    if len(matches) == 1:
+        return matches[0]
+
+    return _heuristic_route(query)
+
 class ChatRequest(BaseModel):
     query: str
     history: list = []
 
 @app.post("/generate")
 def generate(request: ChatRequest):
-    llm = get_llm()
     prompt = """Bạn là Supervisor của hệ thống tư vấn pháp lý. Bạn có 3 lựa chọn:
 1. 'legal_rag': Nếu câu hỏi liên quan đến pháp luật Việt Nam, luật phòng chống ma túy.
 2. 'web_search': Nếu câu hỏi cần thông tin thực tế, tin tức đời sống, tình hình xã hội bên ngoài.
 3. 'synthesizer': Nếu câu hỏi chỉ mang tính giao tiếp chào hỏi thông thường.
 Hãy CHỈ trả về đúng 1 từ: 'legal_rag', 'web_search', hoặc 'synthesizer'."""
 
-    sys_msg = SystemMessage(content=prompt)
-    response = llm.invoke([sys_msg, HumanMessage(content=request.query)])
-    
-    route = response.content.strip()
-    next_route = "synthesizer"
-    if "legal_rag" in route: next_route = "legal_rag"
-    elif "web_search" in route: next_route = "web_search"
+    try:
+        if os.getenv("RAG_FORCE_OFFLINE", "").strip() in {"1", "true", "yes", "on"}:
+            raise RuntimeError("RAG_FORCE_OFFLINE is enabled")
+        if not os.getenv("OPENROUTER_API_KEY", "").strip():
+            raise RuntimeError("OPENROUTER_API_KEY is not configured")
+        llm = get_llm()
+        sys_msg = SystemMessage(content=prompt)
+        response = llm.invoke([sys_msg, HumanMessage(content=request.query)])
+        route = response.content
+    except Exception:
+        route = ""
+
+    next_route = _normalize_route(route, request.query)
     
     trace = [f"Supervisor ➡️ Định tuyến tới {next_route}"]
     

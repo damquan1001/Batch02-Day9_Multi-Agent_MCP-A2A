@@ -23,14 +23,22 @@ class OpenRouterAdapter(LLMServicePort):
         but we ignore it and read OPENROUTER_API_KEY from environment instead.
         """
         self.temperature = temperature
+        if os.getenv("RAG_FORCE_OFFLINE", "").strip() in {"1", "true", "yes", "on"}:
+            self.llm = None
+            print("RAG_FORCE_OFFLINE is enabled. Using offline answer composer.")
+            return
+
         openrouter_key = os.getenv("OPENROUTER_API_KEY")
         if not openrouter_key:
-            raise ValueError("OPENROUTER_API_KEY environment variable not found")
+            self.llm = None
+            print("OPENROUTER_API_KEY not found. Using offline answer composer.")
+            return
             
         self.llm = ChatOpenAI(
             api_key=openrouter_key,
             model="google/gemini-2.5-flash",
             temperature=self.temperature,
+            max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "1200")),
             base_url="https://openrouter.ai/api/v1",
             default_headers={
                 "HTTP-Referer": "http://localhost:8501",
@@ -39,8 +47,10 @@ class OpenRouterAdapter(LLMServicePort):
         )
 
     def embed_query(self, query: str) -> List[float]:
-        # We don't have OpenRouter embedding yet, fallback to dummy 1024 vector
-        return [0.0] * 1024
+        # No OpenRouter embedding adapter is configured here. Returning an empty
+        # vector lets Weaviate use lexical/hybrid text search instead of sending
+        # a fake vector with the wrong dimensionality.
+        return []
 
     def condense_query(self, chat_history: List[ChatMessage], latest_query: str) -> str:
         """Condense a multi-turn conversation and follow-up query into a standalone query."""
