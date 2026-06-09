@@ -151,13 +151,18 @@ system_prompt = "Bạn là chuyên gia thuế. Hãy trả lời cực kỳ CỤT
 
 ---
 
-## Bài Tập Cộng Điểm
+## Bài Tập Cộng Điểm & Optional Challenges (Detailed)
 
-### 1. Latency (Tổng thời gian trả lời 1 câu hỏi)
-Với một RAG pipeline bình thường gọi 3 Agents tuần tự, tổng thời gian tốn khoảng **10 - 15 giây** (tùy theo load của mô hình Gemini Flash / Claude Haiku). Mạng nội bộ kết nối tốn chưa tới 0.1s, bottleneck 99% nằm ở phía gọi LLM API.
+Báo cáo đầy đủ về các phần Bonus và Challenge nâng cao đã được đính kèm tại file: **[docs/EXTRA_CREDIT_REPORT.md](file:///docs/EXTRA_CREDIT_REPORT.md)**. 
 
-### 2. Đề xuất phương án giảm latency
-- **Chạy Song Song (Parallel Execution):** Trong bài A2A, thay vì đợi `Law Agent` trả về rồi mới gọi `Tax Agent`, có thể dùng `asyncio.gather()` bắn requests cùng lúc đến tất cả các worker agents để giảm thời gian chờ xuống chỉ bằng thời gian của agent chạy lâu nhất (giảm từ 10s xuống còn 4s).
-- **Streaming (SSE):** Sử dụng Server-Sent Events để trả về từng token cho UI ngay khi LLM sinh ra chữ cái đầu tiên (TTFT - Time To First Token). Tăng trải nghiệm người dùng ngay lập tức.
-- **Semantic Caching:** Sử dụng Redis hoặc In-memory Vector Store lưu lại câu hỏi. Nếu câu hỏi tương tự 95% xuất hiện, lấy thẳng kết quả thay vì gọi lại Agents (giảm latency xuống dưới 0.1s).
-- **Reranker thu gọn context:** Thay vì nhét 5 tài liệu dài vào LLM (tăng thời gian đọc và sinh câu trả lời), dùng một mô hình cross-encoder nhẹ chạy local để chọn đúng 1 đoạn văn chính xác nhất.
+Báo cáo bao gồm:
+1. **Trace request flow và sequence diagram** chi tiết.
+2. **Kiểm tra Dynamic Discovery** (thử nghiệm dừng Tax Agent).
+3. **Đo đạc Latency** và đề xuất giảm Latency cụ thể bằng tham số.
+4. Triển khai toàn bộ các **Challenge 1, 2, 3, 4**:
+   - Tích hợp **Conversation Memory**.
+   - Phân quyền **API-Key Authentication**.
+   - Tích hợp logic **Retry tự động** với hàm mũ.
+   - Thêm endpoints `/metrics` cho **Monitoring**.
+   - Bổ sung **Financial Agent** chuyên phân tích thiệt hại.
+   - Giao tiếp ngoại vi theo cấu trúc **MCP** (Model Context Protocol).
